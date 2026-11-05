@@ -1,0 +1,151 @@
+@startuml
+title Алгоритм работы имитационной модели — вариант 8
+
+start
+
+partition "SimulationEngine" {
+    :Инициализировать модель;
+    :Создать первые события\nгенерации заявок;
+}
+
+while (Моделирование продолжается?) is (Да)
+
+    partition "SimulationEngine" {
+        :Выбрать ближайшее событие;
+        :Установить currentTime = event.time;
+    }
+
+    if (Тип события = REQUEST_GENERATED?) then (Да)
+
+        partition "Source" {
+            :Создать новую заявку;
+            note right
+            ИБ — бесконечный источник
+            ИЗ2 — равномерный закон
+            end note
+
+            :Запланировать момент\nследующей генерации;
+        }
+
+        partition "Statistics" {
+            :Увеличить число\nсгенерированных заявок;
+        }
+
+        partition "PlacementDispatcher" {
+            :Запросить состояние Buffer;
+        }
+
+        partition "Buffer" {
+            if (Buffer заполнен?) then (Нет)
+                :Добавить заявку\nна первое свободное место\nс мин. индексом;
+
+                note right
+                Д1ОЗ2 — постановка на свободное место
+                end note
+
+            else (Да)
+                :Найти самую старую заявку\nв буфере;
+
+                note right
+                Д1ОО4 — выбивание самой старой заявки
+                end note
+
+                :Удалить выбранную заявку;
+
+                partition "Statistics" {
+                    :Зафиксировать отказ\n(выбивание из буфера);
+                }
+
+                partition "Buffer" {
+                    :Добавить новую заявку\nна освободившееся место;
+                }
+
+            endif
+        }
+
+        partition "DevicePool" {
+            :Проверить наличие\nсвободного worker;
+        }
+
+        if (Свободный worker есть?) then (Да)
+
+            partition "SelectionDispatcher" {
+                :Выбрать заявку из буфера\nпо приоритету источника;
+                
+                note right
+                Д2Б4 — приоритет источников
+                end note
+            }
+
+            partition "DevicePool" {
+                :Найти свободный worker\nпо кольцу;
+
+                note right
+                Д2П2 — выбор worker по кольцу (Round-Robin)
+                end note
+
+                :Передвинуть указатель;
+            }
+
+            partition "Worker" {
+                :Начать обслуживание заявки;
+
+                note right
+                ПЗ1 — экспоненциальное\nвремя обслуживания
+                end note
+
+                :Создать событие\nSERVICE_COMPLETED;
+            }
+
+        else (Нет)
+
+            partition "SimulationEngine" {
+                :Продолжить ожидание\nследующего события;
+            }
+
+        endif
+
+    else (Нет)
+
+        if (Тип события = SERVICE_COMPLETED?) then (Да)
+
+            partition "Worker" {
+                :Закончить обслуживание;
+                :Перейти в состояние FREE;
+            }
+
+            partition "Statistics" {
+                :Записать время обслуживания;
+                :Записать время ожидания;
+                :Записать время пребывания;
+                :Увеличить число обработанных;
+            }
+
+            partition "SelectionDispatcher" {
+                :Проверить наличие заявок в Buffer;
+                if (Buffer пуст?) then (Да)
+                    :Ожидать появления новых заявок;
+                else (Нет)
+                    :Выбрать следующую заявку\nпо приоритету источника (Д2Б4);
+                endif
+            }
+
+        else (Нет)
+
+            partition "SimulationEngine" {
+                :Обработать событие\nзавершения моделирования;
+            }
+
+        endif
+
+    endif
+
+endwhile (Нет)
+
+partition "Statistics" {
+    :Рассчитать итоговые показатели;
+    :Сформировать сводную таблицу ОР1;
+}
+
+stop
+@enduml

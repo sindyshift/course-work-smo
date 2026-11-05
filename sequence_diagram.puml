@@ -1,0 +1,117 @@
+@startuml
+title Комплексная сиквенс-диаграмма — вариант 8 \nИБ – ИЗ2 – ПЗ1 – Д1ОЗ2 – Д1ОО4 – Д2П2 – Д2Б4 – ОР1 – ОД2
+
+autonumber
+
+participant "Источник" as Source
+control "SimulationEngine" as Engine
+control "PlacementDispatcher" as PD
+queue "Buffer" as Buffer
+control "SelectionDispatcher" as SD
+collections "DevicePool" as Devices
+participant "Worker" as Worker
+control "Statistics" as Stats
+
+== 1. Happy Flow: Генерация и постановка в свободный буфер ==
+
+Source -> Engine: generateRequest()
+
+note right of Source
+ИБ — бесконечный источник.
+ИЗ2 — равномерный закон генерации.
+end note
+
+Engine -> Stats: recordGenerated(request)
+Engine -> PD: handleArrival(request)
+
+PD -> Buffer: isFull()
+Buffer --> PD: false
+
+PD -> Buffer: enqueue(request)
+
+note right of Buffer
+Д1ОЗ2 — постановка заявки 
+на первое свободное место 
+с минимальным индексом.
+end note
+
+Buffer --> PD: added
+
+
+== 2. Альтернатива: Переполнение буфера и выбивание (Д1ОО4) ==
+
+Source -> Engine: generateRequest()
+Engine -> PD: handleArrival(newRequest)
+
+PD -> Buffer: isFull()
+Buffer --> PD: true
+
+alt Буфер заполнен (Переполнение)
+    PD -> Buffer: getOldestRequest()
+    Buffer --> PD: victimRequest
+
+    note right of PD
+    Д1ОО4 — отказ с выбиванием 
+    самой старой заявки из буфера 
+    (истекает таймаут ожидания).
+    end note
+
+    PD -> Stats: recordRejected(victimRequest)
+
+    PD -> Buffer: remove(victimRequest)
+    Buffer --> PD: removed
+
+    PD -> Buffer: enqueue(newRequest)
+
+    note right of Buffer
+    Д1ОЗ2 — новая заявка занимает 
+    освободившееся место.
+    end note
+
+    Buffer --> PD: added
+end
+
+
+== 3. Проверка приборов и выбор заявки из буфера (Д2Б4, Д2П2) ==
+
+Worker -> Engine: serviceCompleted(request)
+Engine -> Stats: recordCompleted(request)
+
+Engine -> SD: onDeviceAvailable()
+
+note right of Engine
+Освобождение прибора — триггер 
+для работы диспетчера выбора.
+end note
+
+SD -> Buffer: getHighestPrioritySourceRequest()
+
+note right of SD
+Д2Б4 — выбор заявки из буфера 
+осуществляется по приоритету источника.
+end note
+
+Buffer --> SD: request
+
+SD -> Devices: findFreeRoundRobin()
+
+note right of Devices
+Д2П2 — поиск свободного прибора 
+осуществляется по кольцу (Round-Robin).
+end note
+
+Devices --> SD: worker
+
+SD -> Buffer: remove(request)
+Buffer --> SD: removed
+
+SD -> Worker: startService(request)
+
+note right of Worker
+ПЗ1 — экспоненциальный закон 
+времени обслуживания заявки.
+end note
+
+Worker --> SD: accepted
+
+@enduml

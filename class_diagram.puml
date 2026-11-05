@@ -1,0 +1,108 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+class Model {
+  - sources: Source[]
+  - buffer: Buffer
+  - handlers: Device[]
+  - storage: Storage
+  - postDispatcher: PutDispatcher
+  - pickDispatcher: SelectDispatcher
+  - display: Display
+  - currentTime: double
+  + init(): void
+  + step(): void
+  + run(): void
+  + collectStatistics(): void
+}
+
+class Source {
+  - id: int
+  - lambda: double
+  - nextGenerationTime: double
+  - generatedCount: int
+  - dispatcher: PutDispatcher
+  + generateLog(currentTime: double): LogEntry
+  + getNextTime(): double
+  + getGeneratedCount(): int
+}
+
+class PutDispatcher {
+  - buffer: Buffer
+  + acceptLog(log: LogEntry): bool
+  + pushToBuffer(log: LogEntry): bool
+  + rejectOldest(): LogEntry
+}
+
+class Buffer {
+  - capacity: int
+  - slots: LogEntry[]
+  - writePointer: int
+  - readPointer: int
+  - occupiedCount: int
+  - rejectedCount: int
+  + hasFreeSlot(): bool
+  + hasLogs(): bool
+  + putLog(log: LogEntry): bool
+  + findFreeSlot(): int
+  + removeOldest(): LogEntry
+  + getLog(): LogEntry
+}
+
+class SelectDispatcher {
+  - buffer: Buffer
+  - handlers: Device[]
+  - handlerPointer: int
+  + findFreeHandler(): Device
+  + pickLogFromBuffer(): LogEntry
+  + assignLogToHandler(log: LogEntry): void
+}
+
+class Device {
+  - id: int
+  - isBusy: bool
+  - currentLog: LogEntry
+  - finishTime: double
+  - processedCount: int
+  - busyTime: double
+  - storage: Storage
+  + isFree(): bool
+  + startProcessing(log: LogEntry, t: double, serviceTime: double): void
+  + finishProcessing(): void
+}
+
+class Storage {
+  - logs: LogEntry[]
+  - savedCount: int
+  + saveLog(log: LogEntry): void
+}
+
+class LogEntry {
+  - id: int
+  - sourceId: int
+  - message: string
+  - createdAt: double
+  + getId(): int
+  + getSourceId(): int
+}
+
+class Display {
+  + printStepState(t: double, buffer: Buffer, handlers: Device[]): void
+  + printFinalStats(): void
+}
+
+Model "1" --> "*" Source : manages
+Model "1" --> "1" Buffer : manages
+Model "1" --> "*" Device : manages
+Model "1" --> "1" PutDispatcher : manages
+Model "1" --> "1" SelectDispatcher : manages
+Model "1" --> "1" Display : manages
+
+PutDispatcher "1" --> "1" Buffer : - buffer
+SelectDispatcher "1" --> "1" Buffer : - buffer
+SelectDispatcher "1" --> "*" Device : - handlers
+Source "1" --> "1" PutDispatcher : помещает заявки
+Buffer "1" o-- "*" LogEntry : хранит
+Device "1" o-- "0..1" LogEntry : обрабатывает
+Device "1" --> "1" Storage : сохраняет логи
+@enduml
