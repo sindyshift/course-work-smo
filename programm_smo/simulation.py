@@ -15,7 +15,6 @@ class SimulationModel:
     self.b = b
     self.mu = mu
 
-    # Поля для пошагового режима (ОД2)
     self.sources = [Source(i + 1, a, b) for i in range(ns)]
     self.buffer = Buffer(bc)
     self.devices = [Device(i + 1, mu) for i in range(nd)]
@@ -233,7 +232,7 @@ class SimulationModel:
 
   def _print_final_report(self, source_stats, device_load, N):
     print("==================================================")
-    print(f" ИТОГОВЫЕ РЕЗУЛЬТАТЫ МОДЕЛИРОВАНИЯ (Автоматический режим OP1)")
+    print(f" ИТОГОВЫЕ РЕЗУЛЬТАТЫ МОДЕЛИРОВАНИЯ")
     print(f" Оптимальное число сгенерированных заявок N = {N}")
     print("==================================================")
     print(

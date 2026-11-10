@@ -17,9 +17,8 @@ if __name__ == "__main__":
     print("Нажимайте Enter для перехода к следующему шагу модели.\n")
     input("Нажмите Enter для старта...")
 
-    # Запускаем пошаговый прогон (например, на 20-30 шагов)
     for step in range(1, 31):
-      sim.step(step)  # Метод step() выведет на экран состояние системы
+      sim.step(step)
       cmd = input(f"[Шаг {step}] Нажмите Enter (или q для выхода)...")
       if cmd.strip().lower() == "q":
         break
