@@ -14,7 +14,7 @@ class SimulationModel:
     self.a = a
     self.b = b
     self.mu = mu
-
+    
     self.sources = [Source(i + 1, a, b) for i in range(ns)]
     self.buffer = Buffer(bc)
     self.devices = [Device(i + 1, mu) for i in range(nd)]
@@ -46,28 +46,37 @@ class SimulationModel:
 
       if self.buffer.has_free():
         idx = self.buffer.put(req)
-        desc = f"Ген {req} -> Буфер [{idx}]"
+        desc = f"Заявка {req} сгенерирована -> отправлена в буфер [{idx}]"
       else:
         oidx, victim = self.buffer.pop_oldest()
         self.rej += 1
         idx = self.buffer.put(req)
         desc = (
-            f"Ген {req} -> Отказ (выбит {victim} из [{oidx}]), занял [{idx}]"
+            f"Заявка {req} сгенерирована -> Буфер полон -> Выбита старая заявка"
+            f" {victim} из [{oidx}] -> Новая отправлена в буфер [{idx}]"
         )
 
-      self._assign_step()
+      assigned_dev = self._assign_step_with_log()
+      if assigned_dev:
+        desc += f" | Выбрана из буфера и отправлена на обработку (П{assigned_dev})"
+
     elif etype == "REL":
       dev = self.devices[oid - 1]
       done, _ = dev.release()
       self.proc += 1
-      desc = f"Прибор П{dev.did} освободился ({done} готов)"
-      self._assign_step()
+      desc = f"Прибор П{dev.did} завершил обработку заявки {done}"
+
+      assigned_dev = self._assign_step_with_log()
+      if assigned_dev:
+        desc += (
+            f" | Выбрана следующая заявка из буфера и отправлена на П{assigned_dev}"
+        )
 
     self._print_step(step_n, desc)
 
-  def _assign_step(self):
+  def _assign_step_with_log(self):
     if self.buffer.is_empty():
-      return
+      return None
     start = self.ptr
     dev = None
     for i in range(len(self.devices)):
@@ -80,16 +89,26 @@ class SimulationModel:
       _, req = self.buffer.pop_priority()
       if req:
         dev.start(req, self.t)
+        return dev.did
+    return None
 
   def _print_step(self, n, desc):
     buf_view = [str(s) if s else "_" for s in self.buffer.slots]
     dev_view = [
         f"П{d.did}:({d.req if d.busy else 'свободен'})" for d in self.devices
     ]
+
+    total_requests = self.rej + self.proc
+    p_rej_percent = (
+        (self.rej / total_requests * 100) if total_requests > 0 else 0.0
+    )
+
     print(f"[{n:02d}] t={self.t:.2f} | Событие: {desc}")
+    print(f"     Буфер (Д1ОЗ2/Д1ОО4): {buf_view}")
+    print(f"     Приборы (Д2П2): {dev_view} | Указатель прибора: {self.ptr + 1}")
     print(
-        f"     Буфер: {buf_view} | Приборы: {dev_view} | Отказы: {self.rej},"
-        f" Ок: {self.proc}\n"
+        f"     Статистика -> Отказы: {self.rej} ({p_rej_percent:.1f}%) |"
+        f" Обработано: {self.proc}\n"
     )
 
   def _run_simulation(self, max_generated_requests):
@@ -232,7 +251,7 @@ class SimulationModel:
 
   def _print_final_report(self, source_stats, device_load, N):
     print("==================================================")
-    print(f" ИТОГОВЫЕ РЕЗУЛЬТАТЫ МОДЕЛИРОВАНИЯ")
+    print(f" ИТОГОВЫЕ РЕЗУЛЬТАТЫ МОДЕЛИРОВАНИЯ (Автоматический режим OP1)")
     print(f" Оптимальное число сгенерированных заявок N = {N}")
     print("==================================================")
     print(
